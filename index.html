@@ -1230,5 +1230,85 @@
     </section>
     <script src="jquery-3.7.1.min.js"></script>
     <script src="static/js/app.js"></script>
+    <script>
+      // Balance spending patch: subtract bet immediately when a round starts.
+      (function () {
+        function installBetBalancePatch() {
+          const playButton = document.getElementById('play_btn');
+          const amountField = document.getElementById('amount_field');
+          const increaseButton = document.getElementById('increase_bet_btn');
+
+          if (!playButton || playButton.dataset.balancePatch === '1') return;
+          playButton.dataset.balancePatch = '1';
+
+          function getBetAmount() {
+            const rawValue = amountField ? amountField.value : SETTINGS.amount;
+            const amount = Number(String(rawValue).replace(',', '.').replace(/[^0-9.]/g, ''));
+            return Number.isFinite(amount) ? amount : 0;
+          }
+
+          function clampBetToBalance() {
+            if (typeof SETTINGS === 'undefined') return;
+
+            const currentAmount = getBetAmount();
+            if (currentAmount > 0) SETTINGS.amount = currentAmount;
+
+            if (SETTINGS.amount > SETTINGS.balance) {
+              SETTINGS.amount = Math.max(5, Math.floor(SETTINGS.balance));
+              updateSettings();
+            }
+          }
+
+          if (amountField) {
+            amountField.addEventListener('input', function () {
+              setTimeout(clampBetToBalance, 0);
+            });
+          }
+
+          if (increaseButton) {
+            increaseButton.addEventListener('click', function () {
+              setTimeout(clampBetToBalance, 0);
+            });
+          }
+
+          playButton.addEventListener(
+            'click',
+            function (event) {
+              if (typeof SETTINGS === 'undefined') return;
+
+              const amount = getBetAmount();
+
+              if (!amount || amount <= 0) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                alert('Введите корректную ставку');
+                return;
+              }
+
+              SETTINGS.amount = amount;
+
+              if (SETTINGS.amount > SETTINGS.balance) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                alert('Недостаточно средств на балансе');
+                updateSettings();
+                return;
+              }
+
+              SETTINGS.balance = Math.max(0, SETTINGS.balance - SETTINGS.amount);
+              SETTINGS.cellOpened = 0;
+              updateSettings();
+            },
+            true
+          );
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', installBetBalancePatch);
+        } else {
+          installBetBalancePatch();
+        }
+      })();
+    </script>
   </body>
 </html>
